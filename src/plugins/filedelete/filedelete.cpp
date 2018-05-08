@@ -355,6 +355,22 @@ static void grab_file_by_handle(filedelete* f, drakvuf_t drakvuf,
 
     vmi_free_unicode_str(us);
 }
+/*
+* NTSYSAPI NTSTATUS ZwDeleteFile(
+*  POBJECT_ATTRIBUTES ObjectAttributes
+* );
+*/
+static event_response_t zwdeletefile(drakvuf_t drakvuf, drakvuf_trap_info_t* info){
+    printf("I am hooked");
+    // filedelete* f = (filedelete*)info->trap->data;
+    // vmi_instance_t vmi = drakvuf_lock_and_get_vmi(drakvuf);
+
+    // access_context_t ctx;   
+    // ctx.translate_mechanism = VMI_TM_PROCESS_DTB;
+    // ctx.dtb = info->regs->cr3;
+
+    
+}
 
 /*
  * NTSTATUS ZwSetInformationFile(
@@ -370,13 +386,13 @@ static void grab_file_by_handle(filedelete* f, drakvuf_t drakvuf,
  *  BOOLEAN DeleteFile;
  * }
  */
-static event_response_t setinformation(drakvuf_t drakvuf, drakvuf_trap_info_t* info)
+static event_response_t setinformation(drakvuf_t drakvuf, drakvuf_trap_info_t* info) //look at drakvuf_trap_info_t
 {
 
     filedelete* f = (filedelete*)info->trap->data;
     vmi_instance_t vmi = drakvuf_lock_and_get_vmi(drakvuf);
 
-    access_context_t ctx;
+    access_context_t ctx; //look at access_context_t  
     ctx.translate_mechanism = VMI_TM_PROCESS_DTB;
     ctx.dtb = info->regs->cr3;
 
@@ -436,11 +452,18 @@ filedelete::filedelete(drakvuf_t drakvuf, const void* config, output_format_t ou
         throw -1;
     if ( !drakvuf_get_function_rva(c->rekall_profile, "ZwSetInformationFile", &this->traps[1].breakpoint.rva) )
         throw -1;
+    //
+    if ( !drakvuf_get_function_rva(c->rekall_profile, "ZwDeleteFile", &this->traps[2].breakpoint.rva) )
+        printf("Unable to find rva of ZwDeletefile in rekall");
+        throw -1;
 
     this->traps[0].name = "NtSetInformationFile";
     this->traps[0].cb = setinformation;
     this->traps[1].name = "ZwSetInformationFile";
     this->traps[1].cb = setinformation;
+    //
+    this->traps[2].name = "ZwDeleteFile"; //check rekall if zw or nt
+    this->traps[2].cb = zwdeletefile;
     /* TODO
     traps[2].u2.rva = drakvuf_get_function_rva(c->rekall_profile, "NtDeleteFile");
     traps[2].name = "NtDeleteFile";
@@ -465,6 +488,9 @@ filedelete::filedelete(drakvuf_t drakvuf, const void* config, output_format_t ou
         this->mmpte_size = 8;
 
     if ( !drakvuf_add_trap(drakvuf, &traps[0]) )
+        throw -1;
+    //
+    if ( !drakvuf_add_trap(drakvuf, &trap[2]) )
         throw -1;
     //drakvuf_add_trap(drakvuf, &traps[1]);
     //drakvuf_add_trap(drakvuf, &traps[2]);
